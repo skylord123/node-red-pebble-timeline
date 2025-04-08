@@ -1,0 +1,122 @@
+<script type="text/javascript">
+    RED.nodes.registerType('pebble-timeline-delete', {
+        category: 'Pebble',
+        color: '#1da1f2',
+        defaults: {
+            name: {value: ""},
+            config: {type: "pebble-timeline-config", required: true},
+
+            // Server override options
+            apiUrl: {value: "null"},
+            apiUrlType: {value: "jsonata"},
+
+            token: {value: "null"},
+            tokenType: {value: "jsonata"},
+
+            // Pin ID property
+            pinId: {value: "payload.id"},
+            pinIdType: {value: "msg"}
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-trash-o",
+        label: function () {
+            return this.name || "Delete Timeline Pin";
+        },
+        oneditprepare: function () {
+            // Setup TypedInput for server override options
+            $("#node-input-apiUrl").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-apiUrlType"
+            });
+
+            $("#node-input-token").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-tokenType"
+            });
+
+            // Setup TypedInput for pinId
+            $("#node-input-pinId").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-pinIdType"
+            });
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="pebble-timeline-delete">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-config"><i class="fa fa-cog"></i> Config</label>
+        <input type="text" id="node-input-config">
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-title">Server Overrides (Optional)</div>
+
+        <div class="form-row">
+            <label for="node-input-apiUrl"><i class="fa fa-globe"></i> API URL</label>
+            <input type="text" id="node-input-apiUrl" style="width: 70%">
+            <input type="hidden" id="node-input-apiUrlType">
+            <div class="form-tips">Override the API URL configured in the config node. Defaults to
+                https://timeline-api.rebble.io
+            </div>
+        </div>
+
+        <div class="form-row">
+            <label for="node-input-token"><i class="fa fa-key"></i> Token</label>
+            <input type="text" id="node-input-token" style="width: 70%">
+            <input type="hidden" id="node-input-tokenType">
+            <div class="form-tips">Override the timeline token configured in the config node</div>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-pinId"><i class="fa fa-id-card"></i> Pin ID</label>
+        <input type="text" id="node-input-pinId" style="width: 70%">
+        <input type="hidden" id="node-input-pinIdType">
+        <div class="form-tips">The ID of the pin to delete from the timeline. This must match exactly the ID that was
+            used when the pin was created.
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="pebble-timeline-delete">
+    <p>Deletes a pin from the Pebble Timeline.</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>payload.id <span class="property-type">string</span></dt>
+        <dd>The ID of the pin to delete. This can be overridden by the node's configuration.</dd>
+        <dt>payload <span class="property-type">string</span></dt>
+        <dd>If payload is a string, it will be treated as the pin ID.</dd>
+    </dl>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>The result of the API call, including success status and any error information.</dd>
+        <dt>payload.success <span class="property-type">boolean</span></dt>
+        <dd>Whether the delete operation was successful.</dd>
+        <dt>payload.pinId <span class="property-type">string</span></dt>
+        <dd>The ID of the pin that was deleted or attempted to be deleted.</dd>
+    </dl>
+
+    <h3>Details</h3>
+    <p>This node deletes a pin from the Pebble Timeline. You need to provide the ID of the pin to delete.</p>
+    <p>You can configure the pin ID directly in the node or provide it in the input message. If both are provided, the
+        node's configuration takes precedence.</p>
+    <p>The pin will be deleted from both the Pebble Timeline service and the local storage for the current timeline token.</p>
+    <p>When deleting pins, the system also automatically cleans up any pins older than one month from all tokens to prevent the storage file from growing too large.</p>
+    <p>Note that once a pin ID has been deleted, it cannot be reused for future pins.</p>
+
+    <h3>References</h3>
+    <ul>
+        <li><a href="https://developer.pebble.com/guides/pebble-timeline/pin-structure/">Pebble Timeline Pin
+            Structure</a></li>
+    </ul>
+</script>

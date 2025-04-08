@@ -1,0 +1,63 @@
+<script type="text/javascript">
+    RED.nodes.registerType('pebble-timeline-config', {
+        category: 'config',
+        defaults: {
+            name: { value: "" },
+            apiUrl: { value: "https://timeline-api.rebble.io", required: true }
+        },
+        credentials: {
+            timelineToken: { type: "password" }
+        },
+        label: function() {
+            return this.name || "Pebble Timeline Config";
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="pebble-timeline-config">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Name">
+        <div class="form-tips">Optional name to identify this configuration in the flow</div>
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-apiUrl"><i class="fa fa-globe"></i> API URL</label>
+        <input type="text" id="node-config-input-apiUrl" placeholder="https://timeline-api.rebble.io">
+        <div class="form-tips">The URL of the Pebble Timeline API. The default URL (https://timeline-api.rebble.io) is
+            provided by the Rebble service which maintains Pebble functionality after official support ended.
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-timelineToken"><i class="fa fa-key"></i> Timeline Token</label>
+        <input type="password" id="node-config-input-timelineToken">
+        <div class="form-tips">Your timeline token for authentication with the API. This token is used to authenticate
+            your app with the Pebble Timeline service.
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="pebble-timeline-config">
+    <p>Configuration for connecting to the Pebble Timeline API.</p>
+
+    <h3>Details</h3>
+    <dl class="message-properties">
+        <dt>Name <span class="property-type">string</span></dt>
+        <dd>Optional name for this configuration. Used to identify this configuration in your flows.</dd>
+
+        <dt>API URL <span class="property-type">string</span></dt>
+        <dd>The URL of the Pebble Timeline API. Defaults to https://timeline-api.rebble.io, which is the Rebble service
+            that maintains Pebble functionality.
+        </dd>
+
+        <dt>Timeline Token <span class="property-type">string</span></dt>
+        <dd>Your timeline token for authentication with the API. This is used to authenticate your app with the timeline
+            service. Each token has its own separate list of pins, and pins are automatically cleaned up after one month.
+        </dd>
+    </dl>
+
+    <h3>References</h3>
+    <ul>
+        <li><a href="https://developer.pebble.com/guides/pebble-timeline/">Pebble Timeline Developer Guide</a></li>
+        <li><a href="https://rebble.io">Rebble.io - The community maintaining Pebble services</a></li>
+    </ul>
+</script>

@@ -1,0 +1,926 @@
+<style>
+    /* Additional styles for the Pebble Timeline Add node */
+    .form-section-title.calendar-active {
+        color: #4285f4;
+    }
+
+    .form-section-title.sports-active {
+        color: #ea4335;
+    }
+
+    .form-section-title.weather-active {
+        color: #34a853;
+    }
+
+    .form-subsection {
+        margin-left: 10px;
+        padding-left: 10px;
+        border-left: 2px solid #eee;
+    }
+
+    .create-notification, .update-notification, .reminders-section, .actions-section {
+        display: none;
+    }
+
+    /* Improve visual hierarchy */
+    .form-section {
+        margin-top: 15px;
+        border-top: 1px solid #f0f0f0;
+        padding-top: 10px;
+    }
+
+    .form-section-title {
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+    .form-tips {
+        font-size: 0.9em;
+    }
+</style>
+
+<script type="text/javascript">
+    RED.nodes.registerType('pebble-timeline-add', {
+        category: 'Pebble',
+        color: '#1da1f2',
+        defaults: {
+            name: { value: "" },
+            config: { type: "pebble-timeline-config", required: true },
+
+            // Server override options
+            apiUrl: { value: "null" },
+            apiUrlType: { value: "jsonata" },
+
+            token: { value: "null" },
+            tokenType: { value: "jsonata" },
+
+            // Pin basic properties
+            pinId: { value: "payload.id" },
+            pinIdType: { value: "msg" },
+
+            time: { value: "payload.time" },
+            timeType: { value: "msg" },
+
+            duration: { value: "payload.duration" },
+            durationType: { value: "msg" },
+
+            // Pin layout properties
+            layoutType: { value: "genericPin" },
+
+            title: { value: "topic" },
+            titleType: { value: "msg" },
+
+            subtitle: { value: "payload.subtitle" },
+            subtitleType: { value: "msg" },
+
+            body: { value: "payload.body" },
+            bodyType: { value: "msg" },
+
+            tinyIcon: { value: "payload.tinyIcon" },
+            tinyIconType: { value: "msg" },
+
+            smallIcon: { value: "payload.smallIcon" },
+            smallIconType: { value: "msg" },
+
+            largeIcon: { value: "payload.largeIcon" },
+            largeIconType: { value: "msg" },
+
+            // Color properties
+            primaryColor: { value: "payload.primaryColor" },
+            primaryColorType: { value: "msg" },
+
+            secondaryColor: { value: "payload.secondaryColor" },
+            secondaryColorType: { value: "msg" },
+
+            backgroundColor: { value: "payload.backgroundColor" },
+            backgroundColorType: { value: "msg" },
+
+            // Notifications
+            createNotification: { value: false },
+            updateNotification: { value: false },
+
+            // Advanced pin properties not commonly used
+            headings: { value: "null" },
+            headingsType: { value: "jsonata" },
+
+            paragraphs: { value: "null" },
+            paragraphsType: { value: "jsonata" },
+
+            lastUpdated: { value: "null" },
+            lastUpdatedType: { value: "jsonata" },
+
+            // Notification properties - Create
+            createNotificationTitle: { value: "payload.createNotification.title" },
+            createNotificationTitleType: { value: "msg" },
+
+            createNotificationBody: { value: "payload.createNotification.body" },
+            createNotificationBodyType: { value: "msg" },
+
+            createNotificationTinyIcon: { value: "payload.createNotification.tinyIcon" },
+            createNotificationTinyIconType: { value: "msg" },
+
+            // Notification properties - Update
+            updateNotificationTime: { value: "payload.updateNotification.time" },
+            updateNotificationTimeType: { value: "msg" },
+
+            updateNotificationTitle: { value: "payload.updateNotification.title" },
+            updateNotificationTitleType: { value: "msg" },
+
+            updateNotificationBody: { value: "payload.updateNotification.body" },
+            updateNotificationBodyType: { value: "msg" },
+
+            updateNotificationTinyIcon: { value: "payload.updateNotification.tinyIcon" },
+            updateNotificationTinyIconType: { value: "msg" },
+
+            // Additional fields for specific layouts
+            locationName: { value: "payload.locationName" },
+            locationNameType: { value: "msg" },
+
+            // Weather layout specific
+            shortTitle: { value: "payload.shortTitle" },
+            shortTitleType: { value: "msg" },
+
+            shortSubtitle: { value: "payload.shortSubtitle" },
+            shortSubtitleType: { value: "msg" },
+
+            displayTime: { value: "pin" },
+
+            // Sports layout specific
+            rankAway: { value: "payload.rankAway" },
+            rankAwayType: { value: "msg" },
+
+            rankHome: { value: "payload.rankHome" },
+            rankHomeType: { value: "msg" },
+
+            nameAway: { value: "payload.nameAway" },
+            nameAwayType: { value: "msg" },
+
+            nameHome: { value: "payload.nameHome" },
+            nameHomeType: { value: "msg" },
+
+            recordAway: { value: "payload.recordAway" },
+            recordAwayType: { value: "msg" },
+
+            recordHome: { value: "payload.recordHome" },
+            recordHomeType: { value: "msg" },
+
+            scoreAway: { value: "payload.scoreAway" },
+            scoreAwayType: { value: "msg" },
+
+            scoreHome: { value: "payload.scoreHome" },
+            scoreHomeType: { value: "msg" },
+
+            sportsGameState: { value: "pre-game" },
+
+            // Advanced options
+            reminders: { value: false },
+            reminderData: { value: "payload.reminders" },
+            reminderDataType: { value: "msg" },
+
+            actions: { value: false },
+            actionData: { value: "payload.actions" },
+            actionDataType: { value: "msg" }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-clock-o",
+        label: function() {
+            return this.name || "Add Timeline Pin";
+        },
+        oneditprepare: function() {
+            // Setup TypedInput for server override options
+            $("#node-input-apiUrl").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-apiUrlType"
+            });
+
+            $("#node-input-token").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-tokenType"
+            });
+
+            // Setup TypedInput for all configurable fields
+            $("#node-input-pinId").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-pinIdType"
+            });
+
+            $("#node-input-time").typedInput({
+                types: ["msg", "flow", "global", "str", "date", "jsonata"],
+                typeField: "#node-input-timeType"
+            });
+
+            $("#node-input-duration").typedInput({
+                types: ["msg", "flow", "global", "num", "jsonata"],
+                typeField: "#node-input-durationType"
+            });
+
+            // Layout properties
+            $("#node-input-title").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-titleType"
+            });
+
+            $("#node-input-subtitle").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-subtitleType"
+            });
+
+            $("#node-input-body").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-bodyType"
+            });
+
+            $("#node-input-tinyIcon").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-tinyIconType"
+            });
+
+            $("#node-input-smallIcon").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-smallIconType"
+            });
+
+            $("#node-input-largeIcon").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-largeIconType"
+            });
+
+            // Color properties
+            $("#node-input-primaryColor").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-primaryColorType"
+            });
+
+            $("#node-input-secondaryColor").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-secondaryColorType"
+            });
+
+            $("#node-input-backgroundColor").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-backgroundColorType"
+            });
+
+            // Create Notification properties
+            $("#node-input-createNotificationTitle").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-createNotificationTitleType"
+            });
+
+            $("#node-input-createNotificationBody").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-createNotificationBodyType"
+            });
+
+            $("#node-input-createNotificationTinyIcon").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-createNotificationTinyIconType"
+            });
+
+            // Update Notification properties
+            $("#node-input-updateNotificationTime").typedInput({
+                types: ["msg", "flow", "global", "str", "date", "jsonata"],
+                typeField: "#node-input-updateNotificationTimeType"
+            });
+
+            $("#node-input-updateNotificationTitle").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-updateNotificationTitleType"
+            });
+
+            $("#node-input-updateNotificationBody").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-updateNotificationBodyType"
+            });
+
+            $("#node-input-updateNotificationTinyIcon").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-updateNotificationTinyIconType"
+            });
+
+            // Additional fields
+            $("#node-input-locationName").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-locationNameType"
+            });
+
+            // Weather layout specific
+            $("#node-input-shortTitle").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-shortTitleType"
+            });
+
+            $("#node-input-shortSubtitle").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-shortSubtitleType"
+            });
+
+            // Sports layout specific
+            $("#node-input-rankAway").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-rankAwayType"
+            });
+
+            $("#node-input-rankHome").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-rankHomeType"
+            });
+
+            $("#node-input-nameAway").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-nameAwayType"
+            });
+
+            $("#node-input-nameHome").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-nameHomeType"
+            });
+
+            $("#node-input-recordAway").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-recordAwayType"
+            });
+
+            $("#node-input-recordHome").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-recordHomeType"
+            });
+
+            $("#node-input-scoreAway").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-scoreAwayType"
+            });
+
+            $("#node-input-scoreHome").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-scoreHomeType"
+            });
+
+            // Advanced options
+            $("#node-input-reminderData").typedInput({
+                types: ["msg", "flow", "global", "json", "jsonata"],
+                typeField: "#node-input-reminderDataType"
+            });
+
+            $("#node-input-actionData").typedInput({
+                types: ["msg", "flow", "global", "json", "jsonata"],
+                typeField: "#node-input-actionDataType"
+            });
+
+            $("#node-input-headings").typedInput({
+                types: ["msg", "flow", "global", "json", "jsonata"],
+                typeField: "#node-input-headingsType"
+            });
+
+            $("#node-input-paragraphs").typedInput({
+                types: ["msg", "flow", "global", "json", "jsonata"],
+                typeField: "#node-input-paragraphsType"
+            });
+
+            $("#node-input-lastUpdated").typedInput({
+                types: ["msg", "flow", "global", "str", "date", "jsonata"],
+                typeField: "#node-input-lastUpdatedType"
+            });
+
+            // Show/hide sections based on layout type
+            $("#node-input-layoutType").on("change", function() {
+                const layoutType = $(this).val();
+
+                // Hide all layout specific sections
+                $(".layout-specific").hide();
+
+                // Show common layout fields
+                $(".layout-common").show();
+
+                // Show layout specific fields with visual indication
+                if (layoutType === "calendarPin") {
+                    $(".layout-calendar").fadeIn(300);
+                    $("#node-dialog").find(".form-section-title").filter(function() {
+                        return $(this).text() === "Pin Layout";
+                    }).addClass("calendar-active");
+                } else if (layoutType === "sportsPin") {
+                    $(".layout-sports").fadeIn(300);
+                    $("#node-dialog").find(".form-section-title").filter(function() {
+                        return $(this).text() === "Pin Layout";
+                    }).addClass("sports-active");
+                } else if (layoutType === "weatherPin") {
+                    $(".layout-weather").fadeIn(300);
+                    $("#node-dialog").find(".form-section-title").filter(function() {
+                        return $(this).text() === "Pin Layout";
+                    }).addClass("weather-active");
+                } else {
+                    $("#node-dialog").find(".form-section-title").filter(function() {
+                        return $(this).text() === "Pin Layout";
+                    }).removeClass("calendar-active sports-active weather-active");
+                }
+            });
+
+            // Show/hide notifications based on checkboxes with animation
+            $("#node-input-createNotification").on("change", function() {
+                if ($(this).is(":checked")) {
+                    $(".create-notification").slideDown(300);
+                    $(this).closest(".form-row").css("margin-bottom", "0");
+                } else {
+                    $(".create-notification").slideUp(300);
+                }
+            });
+
+            $("#node-input-updateNotification").on("change", function() {
+                if ($(this).is(":checked")) {
+                    $(".update-notification").slideDown(300);
+                    $(this).closest(".form-row").css("margin-bottom", "0");
+                } else {
+                    $(".update-notification").slideUp(300);
+                }
+            });
+
+            // Show/hide advanced options with animation
+            $("#node-input-reminders").on("change", function() {
+                if ($(this).is(":checked")) {
+                    $(".reminders-section").slideDown(300);
+                    $(this).closest(".form-row").css("margin-bottom", "0");
+                } else {
+                    $(".reminders-section").slideUp(300);
+                }
+            });
+
+            $("#node-input-actions").on("change", function() {
+                if ($(this).is(":checked")) {
+                    $(".actions-section").slideDown(300);
+                    $(this).closest(".form-row").css("margin-bottom", "0");
+                } else {
+                    $(".actions-section").slideUp(300);
+                }
+            });
+
+            // Initialize with current values
+            $("#node-input-layoutType").trigger("change");
+            $("#node-input-createNotification").trigger("change");
+            $("#node-input-updateNotification").trigger("change");
+            $("#node-input-reminders").trigger("change");
+            $("#node-input-actions").trigger("change");
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="pebble-timeline-add">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-config"><i class="fa fa-cog"></i> Config</label>
+        <input type="text" id="node-input-config">
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-title">Server Overrides (Optional)</div>
+
+        <div class="form-row">
+            <label for="node-input-apiUrl"><i class="fa fa-globe"></i> API URL</label>
+            <input type="text" id="node-input-apiUrl" style="width: 70%">
+            <input type="hidden" id="node-input-apiUrlType">
+            <div class="form-tips">Override the API URL configured in the config node. Defaults to https://timeline-api.rebble.io</div>
+        </div>
+
+        <div class="form-row">
+            <label for="node-input-token"><i class="fa fa-key"></i> Token</label>
+            <input type="text" id="node-input-token" style="width: 70%">
+            <input type="hidden" id="node-input-tokenType">
+            <div class="form-tips">Override the timeline token configured in the config node</div>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-title">Pin Basic Properties</div>
+
+        <div class="form-row">
+            <label for="node-input-pinId"><i class="fa fa-id-card"></i> ID</label>
+            <input type="text" id="node-input-pinId" style="width: 70%">
+            <input type="hidden" id="node-input-pinIdType">
+            <div class="form-tips">Developer-implemented identifier for this pin event, which cannot be re-used. Maximum 64 characters. This id must be unique and cannot be reused even after deletion.</div>
+        </div>
+
+        <div class="form-row">
+            <label for="node-input-time"><i class="fa fa-clock-o"></i> Time</label>
+            <input type="text" id="node-input-time" style="width: 70%">
+            <input type="hidden" id="node-input-timeType">
+            <div class="form-tips">The start time of the event in ISO date-time format (e.g., 2023-01-01T12:00:00Z). This is the time the pin will appear on the timeline.</div>
+        </div>
+
+        <div class="form-row">
+            <label for="node-input-duration"><i class="fa fa-hourglass-half"></i> Duration</label>
+            <input type="text" id="node-input-duration" style="width: 70%">
+            <input type="hidden" id="node-input-durationType">
+            <div class="form-tips">The duration of the event in minutes. Optional but recommended for events with a specific length.</div>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-title">Pin Layout</div>
+
+        <div class="form-row">
+            <label for="node-input-layoutType"><i class="fa fa-th-large"></i> Layout Type</label>
+            <select id="node-input-layoutType">
+                <option value="genericPin">Generic Pin</option>
+                <option value="calendarPin">Calendar Pin</option>
+                <option value="sportsPin">Sports Pin</option>
+                <option value="weatherPin">Weather Pin</option>
+            </select>
+            <div class="form-tips">The type of layout the pin will use. Different layouts have different required fields and visual appearances.</div>
+        </div>
+
+        <div class="form-row layout-common">
+            <label for="node-input-title"><i class="fa fa-font"></i> Title</label>
+            <input type="text" id="node-input-title" style="width: 70%">
+            <input type="hidden" id="node-input-titleType">
+            <div class="form-tips">The title of the pin when viewed on the watch. This is a required field for all pin types.</div>
+        </div>
+
+        <div class="form-row layout-common">
+            <label for="node-input-subtitle"><i class="fa fa-text-height"></i> Subtitle</label>
+            <input type="text" id="node-input-subtitle" style="width: 70%">
+            <input type="hidden" id="node-input-subtitleType">
+            <div class="form-tips">Shorter subtitle text for additional details. For weather pins, this can show high/low temperatures.</div>
+        </div>
+
+        <div class="form-row layout-common">
+            <label for="node-input-body"><i class="fa fa-align-left"></i> Body</label>
+            <input type="text" id="node-input-body" style="width: 70%">
+            <input type="hidden" id="node-input-bodyType">
+            <div class="form-tips">The body text of the pin. Maximum of 512 characters. For weather pins, this is typically the forecast description.</div>
+        </div>
+
+        <div class="form-row layout-common">
+            <label for="node-input-tinyIcon"><i class="fa fa-picture-o"></i> Tiny Icon</label>
+            <input type="text" id="node-input-tinyIcon" style="width: 70%">
+            <input type="hidden" id="node-input-tinyIconType">
+            <div class="form-tips">URI of the pin's tiny icon. Use 'system://images/ICON_NAME' format with one of the system icons (e.g., system://images/NOTIFICATION_FLAG, system://images/TIMELINE_CALENDAR).</div>
+        </div>
+
+        <div class="form-row layout-common">
+            <label for="node-input-smallIcon"><i class="fa fa-picture-o"></i> Small Icon</label>
+            <input type="text" id="node-input-smallIcon" style="width: 70%">
+            <input type="hidden" id="node-input-smallIconType">
+            <div class="form-tips">URI of the pin's small icon. Use 'system://images/ICON_NAME' format with one of the system icons.</div>
+        </div>
+
+        <div class="form-row layout-common">
+            <label for="node-input-largeIcon"><i class="fa fa-picture-o"></i> Large Icon</label>
+            <input type="text" id="node-input-largeIcon" style="width: 70%">
+            <input type="hidden" id="node-input-largeIconType">
+            <div class="form-tips">URI of the pin's large icon. Use 'system://images/ICON_NAME' format with one of the system icons.</div>
+        </div>
+
+        <!-- Colors -->
+        <div class="form-row layout-common">
+            <label for="node-input-primaryColor"><i class="fa fa-paint-brush"></i> Primary Color</label>
+            <input type="text" id="node-input-primaryColor" style="width: 70%">
+            <input type="hidden" id="node-input-primaryColorType">
+            <div class="form-tips">Six-digit color hexadecimal string or case-insensitive SDK constant (e.g.: '#665566' or 'mintgreen'), for primary text color.</div>
+        </div>
+
+        <div class="form-row layout-common">
+            <label for="node-input-secondaryColor"><i class="fa fa-paint-brush"></i> Secondary Color</label>
+            <input type="text" id="node-input-secondaryColor" style="width: 70%">
+            <input type="hidden" id="node-input-secondaryColorType">
+            <div class="form-tips">Six-digit color hexadecimal string or case-insensitive SDK constant for the layout's secondary-colored elements.</div>
+        </div>
+
+        <div class="form-row layout-common">
+            <label for="node-input-backgroundColor"><i class="fa fa-paint-brush"></i> Background Color</label>
+            <input type="text" id="node-input-backgroundColor" style="width: 70%">
+            <input type="hidden" id="node-input-backgroundColorType">
+            <div class="form-tips">Six-digit color hexadecimal string or case-insensitive SDK constant for the layout's background color.</div>
+        </div>
+
+        <!-- Layout specific sections -->
+
+        <!-- Calendar and Weather Layout Common Fields -->
+        <div class="layout-specific layout-calendar layout-weather" style="margin-top: 15px; padding: 10px; background-color: #f9f9f9; border-radius: 5px; display: none;">
+            <div class="form-subsection-title" style="font-weight: bold; margin-bottom: 10px; color: #555;">Calendar/Weather Specific Fields</div>
+
+            <div class="form-row">
+                <label for="node-input-locationName"><i class="fa fa-map-marker"></i> Location</label>
+                <input type="text" id="node-input-locationName" style="width: 70%">
+                <input type="hidden" id="node-input-locationNameType">
+                <div class="form-tips">Name of the location of this pin event. Used for Calendar and Weather pins both in the timeline view and detail view.</div>
+            </div>
+        </div>
+
+        <!-- Weather Layout Specific Fields -->
+        <div class="layout-specific layout-weather" style="margin-top: 15px; padding: 10px; background-color: #f0f7ff; border-radius: 5px; display: none;">
+            <div class="form-subsection-title" style="font-weight: bold; margin-bottom: 10px; color: #555;">Weather Specific Fields</div>
+
+            <div class="form-row">
+                <label for="node-input-shortTitle"><i class="fa fa-font"></i> Short Title</label>
+                <input type="text" id="node-input-shortTitle" style="width: 70%">
+                <input type="hidden" id="node-input-shortTitleType">
+                <div class="form-tips">Used instead of title in the main timeline view (for Weather pins). This helps provide a more concise title in the timeline view.</div>
+            </div>
+
+            <div class="form-row">
+                <label for="node-input-shortSubtitle"><i class="fa fa-text-height"></i> Short Subtitle</label>
+                <input type="text" id="node-input-shortSubtitle" style="width: 70%">
+                <input type="hidden" id="node-input-shortSubtitleType">
+                <div class="form-tips">Used instead of subtitle in the main timeline view (for Weather pins). For weather, this commonly shows temperatures (e.g., '40°/65°').</div>
+            </div>
+
+            <div class="form-row">
+                <label for="node-input-displayTime"><i class="fa fa-clock-o"></i> Display Time</label>
+                <select id="node-input-displayTime">
+                    <option value="pin">Show Pin Time</option>
+                    <option value="none">Don't Show Time</option>
+                </select>
+                <div class="form-tips">Controls whether to display the pin's time in the title of the detail view and description. For weather forecasts, this can be useful to distinguish between different forecast periods.</div>
+            </div>
+        </div>
+
+        <!-- Sports Layout Specific Fields -->
+        <div class="layout-specific layout-sports" style="margin-top: 15px; padding: 10px; background-color: #fff0f0; border-radius: 5px; display: none;">
+            <div class="form-subsection-title" style="font-weight: bold; margin-bottom: 10px; color: #555;">Sports Specific Fields</div>
+
+            <!-- Teams Section -->
+            <div style="border-bottom: 1px solid #eee; margin-bottom: 10px; padding-bottom: 5px;">
+                <div class="form-section-subtitle" style="font-size: 0.9em; margin-bottom: 5px;">Team Information</div>
+
+                <div class="form-row">
+                    <label for="node-input-nameAway"><i class="fa fa-users"></i> Away Team</label>
+                    <input type="text" id="node-input-nameAway" style="width: 70%">
+                    <input type="hidden" id="node-input-nameAwayType">
+                    <div class="form-tips">Short name of the away team. Maximum 4 characters (e.g., 'POR', 'LAC', 'NYK').</div>
+                </div>
+
+                <div class="form-row">
+                    <label for="node-input-nameHome"><i class="fa fa-users"></i> Home Team</label>
+                    <input type="text" id="node-input-nameHome" style="width: 70%">
+                    <input type="hidden" id="node-input-nameHomeType">
+                    <div class="form-tips">Short name of the home team. Maximum 4 characters (e.g., 'LAL', 'BOS', 'CHI').</div>
+                </div>
+            </div>
+
+            <!-- Rankings Section -->
+            <div style="border-bottom: 1px solid #eee; margin-bottom: 10px; padding-bottom: 5px;">
+                <div class="form-section-subtitle" style="font-size: 0.9em; margin-bottom: 5px;">Team Rankings (Pre-Game)</div>
+
+                <div class="form-row">
+                    <label for="node-input-rankAway"><i class="fa fa-sort-numeric-asc"></i> Away Rank</label>
+                    <input type="text" id="node-input-rankAway" style="width: 70%">
+                    <input type="hidden" id="node-input-rankAwayType">
+                    <div class="form-tips">The rank of the away team. Should be about 2 characters (e.g., '03'). Shown before the event begins instead of score.</div>
+                </div>
+
+                <div class="form-row">
+                    <label for="node-input-rankHome"><i class="fa fa-sort-numeric-asc"></i> Home Rank</label>
+                    <input type="text" id="node-input-rankHome" style="width: 70%">
+                    <input type="hidden" id="node-input-rankHomeType">
+                    <div class="form-tips">The rank of the home team. Should be about 2 characters (e.g., '08'). Shown before the event begins instead of score.</div>
+                </div>
+
+                <div class="form-row">
+                    <label for="node-input-recordAway"><i class="fa fa-list-ol"></i> Away Record</label>
+                    <input type="text" id="node-input-recordAway" style="width: 70%">
+                    <input type="hidden" id="node-input-recordAwayType">
+                    <div class="form-tips">Record of the away team in wins-losses format. About 5 characters (e.g., '39-19').</div>
+                </div>
+
+                <div class="form-row">
+                    <label for="node-input-recordHome"><i class="fa fa-list-ol"></i> Home Record</label>
+                    <input type="text" id="node-input-recordHome" style="width: 70%">
+                    <input type="hidden" id="node-input-recordHomeType">
+                    <div class="form-tips">Record of the home team in wins-losses format. About 5 characters (e.g., '39-21').</div>
+                </div>
+            </div>
+
+            <!-- Scores Section -->
+            <div style="border-bottom: 1px solid #eee; margin-bottom: 10px; padding-bottom: 5px;">
+                <div class="form-section-subtitle" style="font-size: 0.9em; margin-bottom: 5px;">Game Scores (In-Game)</div>
+
+                <div class="form-row">
+                    <label for="node-input-scoreAway"><i class="fa fa-trophy"></i> Away Score</label>
+                    <input type="text" id="node-input-scoreAway" style="width: 70%">
+                    <input type="hidden" id="node-input-scoreAwayType">
+                    <div class="form-tips">Score of the away team. About 2 characters (e.g., '54'). Shown after the event begins instead of rank.</div>
+                </div>
+
+                <div class="form-row">
+                    <label for="node-input-scoreHome"><i class="fa fa-trophy"></i> Home Score</label>
+                    <input type="text" id="node-input-scoreHome" style="width: 70%">
+                    <input type="hidden" id="node-input-scoreHomeType">
+                    <div class="form-tips">Score of the home team. About 2 characters (e.g., '49'). Shown after the event begins instead of rank.</div>
+                </div>
+            </div>
+
+            <!-- Game State Section -->
+            <div>
+                <div class="form-section-subtitle" style="font-size: 0.9em; margin-bottom: 5px;">Game State</div>
+
+                <div class="form-row">
+                    <label for="node-input-sportsGameState"><i class="fa fa-dot-circle-o"></i> Game State</label>
+                    <select id="node-input-sportsGameState">
+                        <option value="pre-game">Pre-Game</option>
+                        <option value="in-game">In-Game</option>
+                    </select>
+                    <div class="form-tips">'in-game' for in-game or post-game displays (shows scores), 'pre-game' for pre-game displays (shows ranks).</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-title">Notifications</div>
+
+        <!-- Create Notification Section -->
+        <div class="form-row" style="margin-bottom:0;">
+            <input type="checkbox" id="node-input-createNotification" style="width: auto; margin-left: 125px; vertical-align: top">
+            <label for="node-input-createNotification" style="width: auto">
+                Create Notification
+            </label>
+            <div class="form-tips">The notification shown when the event is first created on the watch. Use this to alert users about new timeline events.</div>
+        </div>
+
+        <!-- Create Notification Fields - Conditionally displayed -->
+        <div class="create-notification" style="padding-left: 20px; border-left: 2px solid #ddd; margin-left: 10px;">
+            <div class="form-row" style="margin-top: 10px;">
+                <label for="node-input-createNotificationTitle"><i class="fa fa-font"></i> Title</label>
+                <input type="text" id="node-input-createNotificationTitle" style="width: 70%">
+                <input type="hidden" id="node-input-createNotificationTitleType">
+                <div class="form-tips">The title of the create notification. Keep it short and informative (e.g., 'New Event').</div>
+            </div>
+
+            <div class="form-row">
+                <label for="node-input-createNotificationBody"><i class="fa fa-align-left"></i> Body</label>
+                <input type="text" id="node-input-createNotificationBody" style="width: 70%">
+                <input type="hidden" id="node-input-createNotificationBodyType">
+                <div class="form-tips">The body text of the create notification. For example, 'A new appointment has been added to your calendar at 4pm.'</div>
+            </div>
+
+            <div class="form-row">
+                <label for="node-input-createNotificationTinyIcon"><i class="fa fa-picture-o"></i> Icon</label>
+                <input type="text" id="node-input-createNotificationTinyIcon" style="width: 70%">
+                <input type="hidden" id="node-input-createNotificationTinyIconType">
+                <div class="form-tips">URI of the notification's tiny icon (e.g., 'system://images/NOTIFICATION_FLAG').</div>
+            </div>
+        </div>
+
+        <!-- Update Notification Section -->
+        <div class="form-row" style="margin-bottom:0; margin-top: 15px;">
+            <input type="checkbox" id="node-input-updateNotification" style="width: auto; margin-left: 125px; vertical-align: top">
+            <label for="node-input-updateNotification" style="width: auto">
+                Update Notification
+            </label>
+            <div class="form-tips">The notification shown when the event is updated but already exists on the watch. Only shown if the update time is newer than the last update time.</div>
+        </div>
+
+        <!-- Update Notification Fields - Conditionally displayed -->
+        <div class="update-notification" style="padding-left: 20px; border-left: 2px solid #ddd; margin-left: 10px;">
+            <div class="form-row" style="margin-top: 10px;">
+                <label for="node-input-updateNotificationTime"><i class="fa fa-clock-o"></i> Time</label>
+                <input type="text" id="node-input-updateNotificationTime" style="width: 70%">
+                <input type="hidden" id="node-input-updateNotificationTimeType">
+                <div class="form-tips">The new time of the pin update. Only shown if newer than the last update time. Use ISO date-time format.</div>
+            </div>
+
+            <div class="form-row">
+                <label for="node-input-updateNotificationTitle"><i class="fa fa-font"></i> Title</label>
+                <input type="text" id="node-input-updateNotificationTitle" style="width: 70%">
+                <input type="hidden" id="node-input-updateNotificationTitleType">
+                <div class="form-tips">The title of the update notification. For example, 'Reminder' or 'Event Updated'.</div>
+            </div>
+
+            <div class="form-row">
+                <label for="node-input-updateNotificationBody"><i class="fa fa-align-left"></i> Body</label>
+                <input type="text" id="node-input-updateNotificationBody" style="width: 70%">
+                <input type="hidden" id="node-input-updateNotificationBodyType">
+                <div class="form-tips">The body text of the update notification. For example, 'The meeting has been rescheduled to 4pm.'</div>
+            </div>
+
+            <div class="form-row">
+                <label for="node-input-updateNotificationTinyIcon"><i class="fa fa-picture-o"></i> Icon</label>
+                <input type="text" id="node-input-updateNotificationTinyIcon" style="width: 70%">
+                <input type="hidden" id="node-input-updateNotificationTinyIconType">
+                <div class="form-tips">URI of the notification's tiny icon (e.g., 'system://images/NOTIFICATION_FLAG').</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-title">Advanced Options</div>
+
+        <!-- Reminders Section -->
+        <div class="form-row" style="margin-bottom:0;">
+            <input type="checkbox" id="node-input-reminders" style="width: auto; margin-left: 125px; vertical-align: top">
+            <label for="node-input-reminders" style="width: auto">
+                Add Reminders
+            </label>
+            <div class="form-tips">Add reminders that are shown before the pin's time. Reminders work even when the Pebble is disconnected from the phone.</div>
+        </div>
+
+        <!-- Reminders Fields - Conditionally displayed -->
+        <div class="reminders-section" style="padding-left: 20px; border-left: 2px solid #ddd; margin-left: 10px; margin-bottom: 15px;">
+            <div class="form-row" style="margin-top: 10px;">
+                <label for="node-input-reminderData"><i class="fa fa-list"></i> Reminder Data</label>
+                <input type="text" id="node-input-reminderData" style="width: 70%">
+                <input type="hidden" id="node-input-reminderDataType">
+                <div class="form-tips">Array of reminder objects, each with time and layout properties. Maximum 3 reminders per pin. Example: [{"time":"2023-01-01T11:45:00Z","layout":{"type":"genericReminder","title":"15 min reminder","tinyIcon":"system://images/TIMELINE_CALENDAR"}}]</div>
+            </div>
+        </div>
+
+        <!-- Actions Section -->
+        <div class="form-row" style="margin-bottom:0;">
+            <input type="checkbox" id="node-input-actions" style="width: auto; margin-left: 125px; vertical-align: top">
+            <label for="node-input-actions" style="width: auto">
+                Add Actions
+            </label>
+            <div class="form-tips">Add interactive actions to the pin that can be executed by the user. These allow users to respond to or interact with pins.</div>
+        </div>
+
+        <!-- Actions Fields - Conditionally displayed -->
+        <div class="actions-section" style="padding-left: 20px; border-left: 2px solid #ddd; margin-left: 10px; margin-bottom: 15px;">
+            <div class="form-row" style="margin-top: 10px;">
+                <label for="node-input-actionData"><i class="fa fa-list"></i> Action Data</label>
+                <input type="text" id="node-input-actionData" style="width: 70%">
+                <input type="hidden" id="node-input-actionDataType">
+                <div class="form-tips">Array of action objects. Example for openWatchApp: [{"title":"View Schedule","type":"openWatchApp","launchCode":15}]. Example for http: [{"title":"Confirm","type":"http","url":"https://example.com/api/confirm","method":"POST","bodyJSON":{"status":"confirmed"}}]</div>
+            </div>
+        </div>
+
+        <!-- Additional Layout Options Section -->
+        <div class="form-subsection" style="margin-top: 15px;">
+            <div class="form-subsection-title" style="margin-bottom: 10px; font-weight: bold;">Additional Layout Options</div>
+
+            <div class="form-row layout-common">
+                <label for="node-input-headings"><i class="fa fa-header"></i> Headings</label>
+                <input type="text" id="node-input-headings" style="width: 70%">
+                <input type="hidden" id="node-input-headingsType">
+                <div class="form-tips">List of section headings in this layout. Example: ["Details", "Location", "Notes"]. The list must be less than 128 characters in total length.</div>
+            </div>
+
+            <div class="form-row layout-common">
+                <label for="node-input-paragraphs"><i class="fa fa-paragraph"></i> Paragraphs</label>
+                <input type="text" id="node-input-paragraphs" style="width: 70%">
+                <input type="hidden" id="node-input-paragraphsType">
+                <div class="form-tips">List of paragraphs in this layout. Must equal the number of headings. Example: ["Meeting with team", "Conference Room A", "Bring presentation materials"]. The list must be less than 1024 characters in total length.</div>
+            </div>
+
+            <div class="form-row layout-common">
+                <label for="node-input-lastUpdated"><i class="fa fa-refresh"></i> Last Updated</label>
+                <input type="text" id="node-input-lastUpdated" style="width: 70%">
+                <input type="hidden" id="node-input-lastUpdatedType">
+                <div class="form-tips">Timestamp of when the pin's data (e.g., weather forecast or sports score) was last updated. Use ISO date-time format.</div>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="pebble-timeline-add">
+    <p>Adds a pin to the Pebble Timeline.</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>The pin data to add to the timeline. This can be overridden by the node's configuration.</dd>
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd>Used as the pin title by default if not otherwise configured.</dd>
+        <dt>payload.id <span class="property-type">string</span></dt>
+        <dd>The unique identifier for the pin (if not specified in the node configuration).</dd>
+        <dt>payload.time <span class="property-type">string</span></dt>
+        <dd>The time for the pin in ISO date-time format.</dd>
+    </dl>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>The result of the API call, including the pin data that was added to the timeline.</dd>
+    </dl>
+
+    <h3>Details</h3>
+    <p>This node adds a pin to the Pebble Timeline. It supports all pin types and layouts as documented in the Pebble API.</p>
+    <p>You can configure the pin directly in the node or provide the pin data in the input message. If both are provided, the node's configuration takes precedence.</p>
+    <p>Pins are stored locally organized by timeline token, with each token having its own separate list of pins. When adding pins, the system automatically cleans up any pins older than one month from all tokens to prevent the storage file from growing too large.</p>
+
+    <h4>Pin Layouts</h4>
+    <ul>
+        <li><strong>genericPin</strong>: Generic layout for pins of no particular type</li>
+        <li><strong>calendarPin</strong>: Standard layout for calendar events</li>
+        <li><strong>sportsPin</strong>: Layout for displaying sports game information</li>
+        <li><strong>weatherPin</strong>: Layout for displaying weather forecasts</li>
+    </ul>
+
+    <h4>Pin Icons</h4>
+    <p>Use system://images/ICON_NAME for icons, where ICON_NAME is one of:</p>
+    <ul>
+        <li>NOTIFICATION_FLAG, NOTIFICATION_GENERIC, NOTIFICATION_REMINDER</li>
+        <li>TIMELINE_CALENDAR, TIMELINE_WEATHER, TIMELINE_SPORTS</li>
+        <li>SUNRISE, SUNSET, PARTLY_CLOUDY, CLOUDY_DAY</li>
+        <li>AMERICAN_FOOTBALL, BASKETBALL, SOCCER_GAME, BASEBALL</li>
+        <li>And many more - see Pebble developer docs for the complete list</li>
+    </ul>
+
+    <h3>References</h3>
+    <ul>
+        <li><a href="https://developer.pebble.com/guides/pebble-timeline/pin-structure/">Pebble Timeline Pin Structure</a></li>
+    </ul>
+</script>

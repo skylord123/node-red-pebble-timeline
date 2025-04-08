@@ -1,0 +1,151 @@
+<script type="text/javascript">
+    RED.nodes.registerType('pebble-timeline-list', {
+        category: 'Pebble',
+        color: '#1da1f2',
+        defaults: {
+            name: {value: ""},
+            config: {type: "pebble-timeline-config", required: true},
+
+            // Server override options
+            apiUrl: {value: "null"},
+            apiUrlType: {value: "jsonata"},
+
+            token: {value: "null"},
+            tokenType: {value: "jsonata"},
+
+            // Filter properties
+            startTime: {value: "payload.startTime"},
+            startTimeType: {value: "msg"},
+
+            endTime: {value: "payload.endTime"},
+            endTimeType: {value: "msg"}
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-list",
+        label: function () {
+            return this.name || "List Timeline Pins";
+        },
+        oneditprepare: function () {
+            // Setup TypedInput for server override options
+            $("#node-input-apiUrl").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-apiUrlType"
+            });
+
+            $("#node-input-token").typedInput({
+                types: ["msg", "flow", "global", "str", "jsonata"],
+                typeField: "#node-input-tokenType"
+            });
+
+            // Setup TypedInput for filter fields
+            $("#node-input-startTime").typedInput({
+                types: ["msg", "flow", "global", "str", "date", "jsonata"],
+                typeField: "#node-input-startTimeType"
+            });
+
+            $("#node-input-endTime").typedInput({
+                types: ["msg", "flow", "global", "str", "date", "jsonata"],
+                typeField: "#node-input-endTimeType"
+            });
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="pebble-timeline-list">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-config"><i class="fa fa-cog"></i> Config</label>
+        <input type="text" id="node-input-config">
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-title">Server Overrides (Optional)</div>
+
+        <div class="form-row">
+            <label for="node-input-apiUrl"><i class="fa fa-globe"></i> API URL</label>
+            <input type="text" id="node-input-apiUrl" style="width: 70%">
+            <input type="hidden" id="node-input-apiUrlType">
+            <div class="form-tips">Override the API URL configured in the config node. Defaults to
+                https://timeline-api.rebble.io
+            </div>
+        </div>
+
+        <div class="form-row">
+            <label for="node-input-token"><i class="fa fa-key"></i> Token</label>
+            <input type="text" id="node-input-token" style="width: 70%">
+            <input type="hidden" id="node-input-tokenType">
+            <div class="form-tips">Override the timeline token configured in the config node</div>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-title">Filter Options</div>
+
+        <div class="form-row">
+            <label for="node-input-startTime"><i class="fa fa-calendar"></i> Start Time</label>
+            <input type="text" id="node-input-startTime" style="width: 70%">
+            <input type="hidden" id="node-input-startTimeType">
+            <div class="form-tips">Filter pins with a time greater than or equal to this value. Use ISO date-time format
+                (e.g., 2023-01-01T00:00:00Z).
+            </div>
+        </div>
+
+        <div class="form-row">
+            <label for="node-input-endTime"><i class="fa fa-calendar"></i> End Time</label>
+            <input type="text" id="node-input-endTime" style="width: 70%">
+            <input type="hidden" id="node-input-endTimeType">
+            <div class="form-tips">Filter pins with a time less than or equal to this value. Use ISO date-time format
+                (e.g., 2023-01-31T23:59:59Z).
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="pebble-timeline-list">
+    <p>Lists pins that have been added to the Pebble Timeline.</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt class="optional">payload <span class="property-type">object</span></dt>
+        <dd>Optional filter criteria for the pins.</dd>
+        <dt class="optional">payload.startTime <span class="property-type">string | date</span></dt>
+        <dd>Filter pins with a time greater than or equal to this value. Use ISO date-time format.</dd>
+        <dt class="optional">payload.endTime <span class="property-type">string | date</span></dt>
+        <dd>Filter pins with a time less than or equal to this value. Use ISO date-time format.</dd>
+    </dl>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">array</span></dt>
+        <dd>An array of pins that match the filter criteria.</dd>
+        <dt>count <span class="property-type">number</span></dt>
+        <dd>The number of pins that match the filter criteria.</dd>
+    </dl>
+
+    <h3>Details</h3>
+    <p>This node lists pins that have been successfully added to the Pebble Timeline. The pins are stored locally in the
+        Node-RED installation directory, organized by timeline token.</p>
+    <p>Only pins associated with the current timeline token will be listed. Each token maintains its own separate list of pins.</p>
+    <p>You can filter the pins by start and end times. The times should be in ISO date-time format (e.g.,
+        2023-01-01T12:00:00Z).</p>
+    <p>By default, if no filters are specified, all pins for the current token will be returned.</p>
+    <p>Pins older than one month are automatically cleaned up when listing pins to prevent the storage file from growing too large.</p>
+
+    <h4>Example Use Cases</h4>
+    <ul>
+        <li>List all upcoming events for the day</li>
+        <li>Filter pins for a specific date range for reporting</li>
+        <li>Show pins for a specific event type based on time criteria</li>
+    </ul>
+
+    <h3>References</h3>
+    <ul>
+        <li><a href="https://developer.pebble.com/guides/pebble-timeline/pin-structure/">Pebble Timeline Pin
+            Structure</a></li>
+    </ul>
+</script>
