@@ -102,7 +102,7 @@ module.exports = function(RED) {
                     node.status({fill: "green", shape: "dot", text: "Pin deleted"});
 
                     // Remove the pin from our local storage
-                    removePin(pinId);
+                    removePin(pinId, timelineToken);
 
                     // Prepare the output message
                     msg.payload = {
@@ -133,8 +133,15 @@ module.exports = function(RED) {
         });
 
         // Helper to remove a pin from local storage
-        function removePin(pinId) {
-            const timelineToken = node.tokenOverride || configNode.credentials.timelineToken;
+        function removePin(pinId, timelineToken) {
+            // Ensure we have a valid token
+            if (!timelineToken) {
+                node.warn("Cannot remove pin: No valid timeline token provided");
+                return;
+            }
+
+            // Convert token to string to ensure it can be used as an object key
+            timelineToken = String(timelineToken);
 
             // Check if this token has any pins
             if (!pinsData[timelineToken]) {
@@ -145,8 +152,7 @@ module.exports = function(RED) {
             const initialCount = pinsData[timelineToken].length;
             pinsData[timelineToken] = pinsData[timelineToken].filter(p => p.id !== pinId);
 
-            // Clean up old pins (older than 1 month) from all tokens
-            cleanupOldPins();
+            // Note: Cleanup of old pins is handled in the add node
 
             // Only write if we actually removed something
             if (pinsData[timelineToken].length !== initialCount) {
@@ -156,27 +162,6 @@ module.exports = function(RED) {
                     node.warn(`Error saving pins to file: ${error.message}`);
                 }
             }
-        }
-
-        // Helper to clean up pins older than 1 month
-        function cleanupOldPins() {
-            const oneMonthAgo = new Date();
-            oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-            // Iterate through all tokens
-            Object.keys(pinsData).forEach(token => {
-                // Filter out pins older than 1 month
-                const initialCount = pinsData[token].length;
-                pinsData[token] = pinsData[token].filter(pin => {
-                    const storedDate = new Date(pin._stored);
-                    return storedDate >= oneMonthAgo;
-                });
-
-                // Log if pins were removed
-                if (pinsData[token].length < initialCount) {
-                    node.debug(`Removed ${initialCount - pinsData[token].length} old pins for token ${token.substring(0, 8)}...`);
-                }
-            });
         }
 
         node.on('close', function() {

@@ -288,7 +288,7 @@ module.exports = function(RED) {
                         node.status({fill: "green", shape: "dot", text: "OK"});
 
                         // Store the pin in our local storage
-                        storePin(pin);
+                        storePin(pin, timelineToken);
 
                         // Prepare the output message
                         msg.payload = {
@@ -336,8 +336,15 @@ module.exports = function(RED) {
         });
 
         // Helper to store a pin in local storage
-        function storePin(pin) {
-            const timelineToken = tokenOverride || configNode.credentials.timelineToken;
+        function storePin(pin, timelineToken) {
+            // Ensure we have a valid token
+            if (!timelineToken) {
+                node.warn("Cannot store pin: No valid timeline token provided");
+                return;
+            }
+
+            // Convert token to string to ensure it can be used as an object key
+            timelineToken = String(timelineToken);
 
             // Initialize the token's pins array if it doesn't exist
             if (!pinsData[timelineToken]) {
@@ -368,21 +375,40 @@ module.exports = function(RED) {
         function cleanupOldPins() {
             const oneMonthAgo = new Date();
             oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+            let changed = false;
 
             // Iterate through all tokens
             Object.keys(pinsData).forEach(token => {
+                // Make sure the token's data is an array
+                if (!Array.isArray(pinsData[token])) {
+                    pinsData[token] = [];
+                    return;
+                }
+
                 // Filter out pins older than 1 month
                 const initialCount = pinsData[token].length;
                 pinsData[token] = pinsData[token].filter(pin => {
-                    const storedDate = new Date(pin._stored);
-                    return storedDate >= oneMonthAgo;
+                    // Make sure pin has _stored property
+                    if (!pin || !pin._stored) return false;
+
+                    try {
+                        const storedDate = new Date(pin._stored);
+                        return storedDate >= oneMonthAgo;
+                    } catch (e) {
+                        // If date parsing fails, remove the pin
+                        return false;
+                    }
                 });
 
                 // Log if pins were removed
                 if (pinsData[token].length < initialCount) {
                     node.debug(`Removed ${initialCount - pinsData[token].length} old pins for token ${token.substring(0, 8)}...`);
+                    changed = true;
                 }
             });
+
+            // No need to save here as the calling function will save the file
+            return changed;
         }
 
         // Apply node configuration to the pin
