@@ -1,5 +1,5 @@
 {
-  "name": "node-red-pebble-timeline",
+  "name": "@skylord123/node-red-pebble-timeline",
   "version": "1.0.0",
   "description": "Node-RED nodes for interacting with the Pebble Timeline API",
   "keywords": [
@@ -8,6 +8,7 @@
     "timeline",
     "smartwatch"
   ],
+  "author": "skylord123",
   "license": "MIT",
   "node-red": {
     "nodes": {
