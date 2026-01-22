@@ -115,17 +115,37 @@ module.exports = function(RED) {
                     if (done) done();
                 })
                 .catch(error => {
-                    node.status({fill: "red", shape: "dot", text: "Error: " + (error.response ? error.response.status : error.message)});
+                    // Handle 404 - pin already deleted
+                    if (error.response && error.response.status === 404) {
+                        node.warn(`Pin ${pinId} not found on server (404) - assuming already deleted`);
+                        node.status({fill: "yellow", shape: "dot", text: "Pin already deleted"});
 
-                    msg.payload = {
-                        success: false,
-                        pinId: pinId,
-                        error: error.message,
-                        response: error.response ? error.response.data : null
-                    };
+                        // Remove from local storage anyway
+                        removePin(pinId, timelineToken);
 
-                    send(msg);
-                    if (done) done(error);
+                        msg.payload = {
+                            success: true,
+                            pinId: pinId,
+                            alreadyDeleted: true,
+                            message: "Pin not found on server, removed from local storage"
+                        };
+
+                        send(msg);
+                        if (done) done();
+                    } else {
+                        // Other errors
+                        node.status({fill: "red", shape: "dot", text: "Error: " + (error.response ? error.response.status : error.message)});
+
+                        msg.payload = {
+                            success: false,
+                            pinId: pinId,
+                            error: error.message,
+                            response: error.response ? error.response.data : null
+                        };
+
+                        send(msg);
+                        if (done) done(error);
+                    }
                 });
             }).catch(err => {
                 if (done) done(err);
