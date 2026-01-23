@@ -1,6 +1,7 @@
 const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
+const { pinValid } = require('./pebble-timeline-validation');
 
 /**
  * Node-RED node for adding pins to the Pebble Timeline API
@@ -259,67 +260,111 @@ module.exports = function(RED) {
                 }
 
                 // Use overrides if provided, otherwise use config node values
-                const apiUrl = `${apiUrlOverride || configNode.apiUrl}/v1/user/pins/${pin.id}`;
+                const baseApiUrl = apiUrlOverride || configNode.apiUrl;
                 const timelineToken = tokenOverride || configNode.credentials.timelineToken;
 
-                if (!timelineToken) {
-                    const errMsg = "Timeline token is required";
-                    node.status({fill: "red", shape: "dot", text: "Missing token"});
-                    // Only use done callback for errors, don't include error in message
-                    if (done) done(errMsg);
-                    return;
-                }
+                // Check if we're in local emulation mode (empty API URL)
+                const isLocalMode = !baseApiUrl || baseApiUrl.trim() === '';
 
-                // Debug: Log final pin data
-                node.debug(`Sending pin: ${JSON.stringify(pin, null, 2)}`);
-                node.debug(`API URL: ${apiUrl}`);
+                if (isLocalMode) {
+                    // Local emulation mode - validate and store locally
+                    node.debug(`Local emulation mode - validating pin locally`);
+                    node.debug(`Pin data: ${JSON.stringify(pin, null, 2)}`);
 
-                // Final validation of the pin object
-                validatePin(pin, node);
+                    // Validate the pin using local validation
+                    const validationResult = pinValid(pin.id, pin);
 
-                axios.put(apiUrl, pin, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-Token': timelineToken
-                    }
-                })
-                    .then(response => {
-                        // Set successful status - using "OK" as requested
-                        node.status({fill: "green", shape: "dot", text: "OK"});
+                    if (!validationResult.valid) {
+                        const errMsg = `Pin validation failed: ${validationResult.error}`;
+                        node.status({fill: "red", shape: "dot", text: "Validation failed"});
+                        node.error(errMsg, msg);
 
-                        // Store the pin in our local storage
-                        storePin(pin, timelineToken);
-
-                        // Prepare the output message
-                        msg.payload = {
-                            success: true,
-                            pin: pin,
-                            response: response.data
-                        };
-
-                        send(msg);
-                        if (done) done();
-                    })
-                    .catch(error => {
-                        // Set error status
-                        node.status({fill: "red", shape: "dot", text: "Error: " + (error.response ? error.response.status : error.message)});
-
-                        // Debug: Log detailed error information
-                        if (error.response) {
-                            node.debug(`Error response: ${JSON.stringify(error.response.data)}`);
-                        }
-
-                        // Prepare error output without throwing an error to done callback
                         msg.payload = {
                             success: false,
-                            error: error.message,
-                            response: error.response ? error.response.data : null
+                            error: errMsg,
+                            validationError: validationResult.error
                         };
 
                         send(msg);
-                        // Don't use done callback for errors from API, as we're handling them in the output
                         if (done) done();
-                    });
+                        return;
+                    }
+
+                    // Pin is valid - store it locally
+                    node.status({fill: "green", shape: "dot", text: "OK (local)"});
+                    storePin(pin, timelineToken || 'local');
+
+                    msg.payload = {
+                        success: true,
+                        pin: pin,
+                        mode: 'local',
+                        message: 'Pin validated and stored locally'
+                    };
+
+                    send(msg);
+                    if (done) done();
+                } else {
+                    // Remote API mode
+                    const apiUrl = `${baseApiUrl}/v1/user/pins/${pin.id}`;
+
+                    if (!timelineToken) {
+                        const errMsg = "Timeline token is required";
+                        node.status({fill: "red", shape: "dot", text: "Missing token"});
+                        if (done) done(errMsg);
+                        return;
+                    }
+
+                    // Debug: Log final pin data
+                    node.debug(`Sending pin: ${JSON.stringify(pin, null, 2)}`);
+                    node.debug(`API URL: ${apiUrl}`);
+
+                    // Final validation of the pin object
+                    validatePin(pin, node);
+
+                    axios.put(apiUrl, pin, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User-Token': timelineToken
+                        }
+                    })
+                        .then(response => {
+                            // Set successful status - using "OK" as requested
+                            node.status({fill: "green", shape: "dot", text: "OK"});
+
+                            // Store the pin in our local storage
+                            storePin(pin, timelineToken);
+
+                            // Prepare the output message
+                            msg.payload = {
+                                success: true,
+                                pin: pin,
+                                response: response.data
+                            };
+
+                            send(msg);
+                            if (done) done();
+                        })
+                        .catch(error => {
+                            // Set error status
+                            node.status({fill: "red", shape: "dot", text: "Error: " + (error.response ? error.response.status : error.message)});
+
+                            // Debug: Log detailed error information
+                            if (error.response) {
+                                node.debug(`Error response: ${JSON.stringify(error.response.data)}`);
+                            }
+
+                            // Prepare error output without throwing an error to done callback
+                            msg.payload = {
+                                success: false,
+                                error: error.message,
+                                response: error.response ? error.response.data : null
+                            };
+
+                            send(msg);
+                            // Don't use done callback for errors from API, as we're handling them in the output
+                            if (done) done();
+                        });
+                }
             } catch (err) {
                 // For unexpected errors, use both the done callback and send the error
                 node.status({fill: "red", shape: "dot", text: "Error: " + err.message});

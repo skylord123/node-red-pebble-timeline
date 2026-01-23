@@ -84,69 +84,95 @@ module.exports = function(RED) {
                 })
             ]).then(() => {
                 // Use overrides if provided, otherwise use config node values
-                const apiUrl = `${node.apiUrlOverride || configNode.apiUrl}/v1/user/pins/${pinId}`;
+                const baseApiUrl = node.apiUrlOverride || configNode.apiUrl;
                 const timelineToken = node.tokenOverride || configNode.credentials.timelineToken;
 
-                if (!timelineToken) {
-                    node.error("Timeline token is required", msg);
-                    if (done) done("Timeline token is required");
-                    return;
-                }
+                // Check if we're in local emulation mode (empty API URL)
+                const isLocalMode = !baseApiUrl || baseApiUrl.trim() === '';
 
-                axios.delete(apiUrl, {
-                    headers: {
-                        'X-User-Token': timelineToken
-                    }
-                })
-                .then(response => {
-                    node.status({fill: "green", shape: "dot", text: "Pin deleted"});
+                if (isLocalMode) {
+                    // Local emulation mode - delete from local storage only
+                    node.debug(`Local emulation mode - deleting pin locally`);
 
                     // Remove the pin from our local storage
-                    removePin(pinId, timelineToken);
+                    removePin(pinId, timelineToken || 'local');
 
-                    // Prepare the output message
+                    node.status({fill: "green", shape: "dot", text: "Pin deleted (local)"});
+
                     msg.payload = {
                         success: true,
                         pinId: pinId,
-                        response: response.data
+                        mode: 'local',
+                        message: 'Pin deleted from local storage'
                     };
 
                     send(msg);
                     if (done) done();
-                })
-                .catch(error => {
-                    // Handle 404 - pin already deleted
-                    if (error.response && error.response.status === 404) {
-                        node.warn(`Pin ${pinId} not found on server (404) - assuming already deleted`);
-                        node.status({fill: "yellow", shape: "dot", text: "Pin already deleted"});
+                } else {
+                    // Remote API mode
+                    const apiUrl = `${baseApiUrl}/v1/user/pins/${pinId}`;
 
-                        // Remove from local storage anyway
+                    if (!timelineToken) {
+                        node.error("Timeline token is required", msg);
+                        if (done) done("Timeline token is required");
+                        return;
+                    }
+
+                    axios.delete(apiUrl, {
+                        headers: {
+                            'X-User-Token': timelineToken
+                        }
+                    })
+                    .then(response => {
+                        node.status({fill: "green", shape: "dot", text: "Pin deleted"});
+
+                        // Remove the pin from our local storage
                         removePin(pinId, timelineToken);
 
+                        // Prepare the output message
                         msg.payload = {
                             success: true,
                             pinId: pinId,
-                            alreadyDeleted: true,
-                            message: "Pin not found on server, removed from local storage"
+                            response: response.data
                         };
 
                         send(msg);
                         if (done) done();
-                    } else {
-                        // Other errors
-                        node.status({fill: "red", shape: "dot", text: "Error: " + (error.response ? error.response.status : error.message)});
+                    })
+                    .catch(error => {
+                        // Handle 404 - pin already deleted
+                        if (error.response && error.response.status === 404) {
+                            node.warn(`Pin ${pinId} not found on server (404) - assuming already deleted`);
+                            node.status({fill: "yellow", shape: "dot", text: "Pin already deleted"});
 
-                        msg.payload = {
-                            success: false,
-                            pinId: pinId,
-                            error: error.message,
-                            response: error.response ? error.response.data : null
-                        };
+                            // Remove from local storage anyway
+                            removePin(pinId, timelineToken);
 
-                        send(msg);
-                        if (done) done(error);
-                    }
-                });
+                            msg.payload = {
+                                success: true,
+                                pinId: pinId,
+                                alreadyDeleted: true,
+                                message: "Pin not found on server, removed from local storage"
+                            };
+
+                            send(msg);
+                            if (done) done();
+                        } else {
+                            // Other errors
+                            node.status({fill: "red", shape: "dot", text: "Error: " + (error.response ? error.response.status : error.message)});
+
+                            msg.payload = {
+                                success: false,
+                                pinId: pinId,
+                                error: error.message,
+                                response: error.response ? error.response.data : null
+                            };
+
+                            send(msg);
+                            if (done) done(error);
+                        }
+                    });
+                }
             }).catch(err => {
                 if (done) done(err);
             });

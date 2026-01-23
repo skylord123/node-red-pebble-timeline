@@ -3,7 +3,7 @@
         category: 'config',
         defaults: {
             name: { value: "" },
-            apiUrl: { value: "https://timeline-api.rebble.io", required: true }
+            apiUrl: { value: "https://timeline-api.rebble.io", required: false }
         },
         credentials: {
             timelineToken: { type: "password" }
@@ -25,6 +25,8 @@
         <input type="text" id="node-config-input-apiUrl" placeholder="https://timeline-api.rebble.io">
         <div class="form-tips">The URL of the Pebble Timeline API. The default URL (https://timeline-api.rebble.io) is
             provided by the Rebble service which maintains Pebble functionality after official support ended.
+            <strong>Leave this field empty to emulate the timeline service locally</strong> - pins will be validated and stored
+            locally without sending requests to a remote server.
         </div>
     </div>
     <div class="form-row">
@@ -46,7 +48,9 @@
 
         <dt>API URL <span class="property-type">string</span></dt>
         <dd>The URL of the Pebble Timeline API. Defaults to https://timeline-api.rebble.io, which is the Rebble service
-            that maintains Pebble functionality.
+            that maintains Pebble functionality. <strong>Leave this field empty to emulate the timeline service locally</strong> -
+            when empty, pins will be validated and stored locally without sending requests to a remote server. This is useful
+            for testing or offline operation.
         </dd>
 
         <dt>Timeline Token <span class="property-type">string</span></dt>
