@@ -1,7 +1,6 @@
 const axios = require('axios');
-const fs = require('fs-extra');
-const path = require('path');
 const { pinValid } = require('./pebble-timeline-validation');
+const store = require('./pebble-timeline-store');
 
 /**
  * Node-RED node for adding pins to the Pebble Timeline API
@@ -29,20 +28,7 @@ module.exports = function(RED) {
             return;
         }
 
-        // Make sure storage directory exists
-        const storageDir = path.join(RED.settings.userDir, 'pebble-timeline');
-        fs.ensureDirSync(storageDir);
-        const pinsFile = path.join(storageDir, 'timeline-pins.json');
-
-        // Load existing pins (organized by token)
-        let pinsData = {};
-        try {
-            if (fs.existsSync(pinsFile)) {
-                pinsData = JSON.parse(fs.readFileSync(pinsFile, 'utf8'));
-            }
-        } catch (error) {
-            node.warn(`Error loading pins file: ${error.message}`);
-        }
+        store.init(RED.settings.userDir);
 
         node.on('input', async function(msg, send, done) {
             // Backwards compatibility with Node-RED 0.x
@@ -291,8 +277,12 @@ module.exports = function(RED) {
                     }
 
                     // Pin is valid - store it locally
+                    try {
+                        await store.addPin(store.resolveKey(configNode, tokenOverride), pin);
+                    } catch (e) {
+                        node.warn(`Error saving pin to local storage: ${e.message}`);
+                    }
                     node.status({fill: "green", shape: "dot", text: "OK (local)"});
-                    storePin(pin, timelineToken || 'local');
 
                     msg.payload = {
                         success: true,
@@ -327,12 +317,16 @@ module.exports = function(RED) {
                             'X-User-Token': timelineToken
                         }
                     })
-                        .then(response => {
+                        .then(async response => {
+                            // Store the pin in our local storage
+                            try {
+                                await store.addPin(store.resolveKey(configNode, tokenOverride), pin);
+                            } catch (e) {
+                                node.warn(`Error saving pin to local storage: ${e.message}`);
+                            }
+
                             // Set successful status - using "OK" as requested
                             node.status({fill: "green", shape: "dot", text: "OK"});
-
-                            // Store the pin in our local storage
-                            storePin(pin, timelineToken);
 
                             // Prepare the output message
                             msg.payload = {
@@ -379,82 +373,6 @@ module.exports = function(RED) {
                 if (done) done();
             }
         });
-
-        // Helper to store a pin in local storage
-        function storePin(pin, timelineToken) {
-            // Ensure we have a valid token
-            if (!timelineToken) {
-                node.warn("Cannot store pin: No valid timeline token provided");
-                return;
-            }
-
-            // Convert token to string to ensure it can be used as an object key
-            timelineToken = String(timelineToken);
-
-            // Initialize the token's pins array if it doesn't exist
-            if (!pinsData[timelineToken]) {
-                pinsData[timelineToken] = [];
-            }
-
-            // Remove any existing pin with the same ID for this token
-            pinsData[timelineToken] = pinsData[timelineToken].filter(p => p.id !== pin.id);
-
-            // Add the new pin with a timestamp for when it was added
-            pinsData[timelineToken].push({
-                ...pin,
-                _stored: new Date().toISOString()
-            });
-
-            // Clean up old pins (older than 1 month) from all tokens
-            cleanupOldPins();
-
-            // Write the pins to the file
-            try {
-                fs.writeFileSync(pinsFile, JSON.stringify(pinsData, null, 2));
-            } catch (error) {
-                node.warn(`Error saving pins to file: ${error.message}`);
-            }
-        }
-
-        // Helper to clean up pins older than 1 month
-        function cleanupOldPins() {
-            const oneMonthAgo = new Date();
-            oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-            let changed = false;
-
-            // Iterate through all tokens
-            Object.keys(pinsData).forEach(token => {
-                // Make sure the token's data is an array
-                if (!Array.isArray(pinsData[token])) {
-                    pinsData[token] = [];
-                    return;
-                }
-
-                // Filter out pins older than 1 month
-                const initialCount = pinsData[token].length;
-                pinsData[token] = pinsData[token].filter(pin => {
-                    // Make sure pin has _stored property
-                    if (!pin || !pin._stored) return false;
-
-                    try {
-                        const storedDate = new Date(pin._stored);
-                        return storedDate >= oneMonthAgo;
-                    } catch (e) {
-                        // If date parsing fails, remove the pin
-                        return false;
-                    }
-                });
-
-                // Log if pins were removed
-                if (pinsData[token].length < initialCount) {
-                    node.debug(`Removed ${initialCount - pinsData[token].length} old pins for token ${token.substring(0, 8)}...`);
-                    changed = true;
-                }
-            });
-
-            // No need to save here as the calling function will save the file
-            return changed;
-        }
 
         // Apply node configuration to the pin
         async function applyNodeConfiguration(pin, config, msg, node) {

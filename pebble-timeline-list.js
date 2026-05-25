@@ -1,25 +1,19 @@
-const fs = require('fs-extra');
-const path = require('path');
+const store = require('./pebble-timeline-store');
 
 module.exports = function(RED) {
     function PebbleTimelineListNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
-        // Get the config node
         const configNode = RED.nodes.getNode(config.config);
         if (!configNode) {
             node.error("No Pebble Timeline configuration found");
             return;
         }
 
-        // Make sure storage directory exists
-        const storageDir = path.join(RED.settings.userDir, 'pebble-timeline');
-        fs.ensureDirSync(storageDir);
-        const pinsFile = path.join(storageDir, 'timeline-pins.json');
+        store.init(RED.settings.userDir);
 
         node.on('input', function(msg, send, done) {
-            // Backwards compatibility with Node-RED 0.x
             send = send || function() { node.send.apply(node, arguments) };
 
             let startTime = null;
@@ -27,7 +21,6 @@ module.exports = function(RED) {
             let apiUrlOverride = null;
             let tokenOverride = null;
 
-            // Process filter parameters in sequence
             Promise.resolve()
                 .then(() => {
                     return new Promise((resolve) => {
@@ -94,58 +87,15 @@ module.exports = function(RED) {
                     });
                 })
                 .then(() => {
-                    // Load the pins
-                    let pinsData = {};
-                    try {
-                        if (fs.existsSync(pinsFile)) {
-                            pinsData = JSON.parse(fs.readFileSync(pinsFile, 'utf8'));
-                        }
-                    } catch (error) {
-                        node.warn(`Error loading pins file: ${error.message}`);
-                    }
+                    const key = store.resolveKey(configNode, tokenOverride);
+                    const pins = store.getPins(key);
 
-                    // Get the timeline token to use
-                    let timelineToken = tokenOverride || configNode.credentials.timelineToken;
-
-                    // Ensure we have a valid token
-                    if (!timelineToken) {
-                        node.warn("No valid timeline token provided");
-                        timelineToken = "default"; // Use a default key to avoid errors
-                    }
-
-                    // Convert token to string to ensure it can be used as an object key
-                    timelineToken = String(timelineToken);
-
-                    // Get pins for this token only
-                    let pins = [];
-                    if (pinsData[timelineToken] && Array.isArray(pinsData[timelineToken])) {
-                        pins = pinsData[timelineToken];
-                    }
-
-                    // Apply filters
                     const filteredPins = pins.filter(pin => {
-                        let include = true;
-
-                        if (startTime !== null) {
-                            const pinTime = new Date(pin.time);
-                            if (pinTime < startTime) {
-                                include = false;
-                            }
-                        }
-
-                        if (endTime !== null) {
-                            const pinTime = new Date(pin.time);
-                            if (pinTime > endTime) {
-                                include = false;
-                            }
-                        }
-
-                        return include;
+                        if (startTime !== null && new Date(pin.time) < startTime) return false;
+                        if (endTime !== null && new Date(pin.time) > endTime) return false;
+                        return true;
                     });
 
-                    // Note: Cleanup of old pins is handled in the add node
-
-                    // Create output message
                     msg.payload = filteredPins;
                     msg.count = filteredPins.length;
 
@@ -161,7 +111,6 @@ module.exports = function(RED) {
         });
 
         node.on('close', function() {
-            // Clean up any resources
         });
     }
 
