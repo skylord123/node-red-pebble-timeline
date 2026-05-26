@@ -20,10 +20,14 @@
       "pebble-timeline-add": "pebble-timeline-add.js",
       "pebble-timeline-delete": "pebble-timeline-delete.js",
       "pebble-timeline-list": "pebble-timeline-list.js"
-    }
+    },
+    "version": ">=2.0.0"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
-    "axios": "1.12.0",
+    "axios": "1.16.1",
     "fs-extra": "^11.1.0"
   }
 }
